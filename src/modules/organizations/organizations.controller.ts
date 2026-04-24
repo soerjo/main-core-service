@@ -6,13 +6,16 @@ import {
   Delete,
   Param,
   Body,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service.js';
 import { CreateOrganizationDto } from './dto/create-organization.dto.js';
 import { UpdateOrganizationDto } from './dto/update-organization.dto.js';
-import { Roles } from '../../common/decorators/roles.decorator.js';
+import { AddMemberDto } from './dto/add-member.dto.js';
+import { Permissions } from '../../common/decorators/permissions.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
+import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe.js';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()
@@ -22,39 +25,79 @@ export class OrganizationsController {
 
   @Get()
   @Public()
-  // @Roles('ADMIN')
-  async findAll() {
-    return this.organizationsService.findAll();
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.organizationsService.findAll(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
   }
 
   @Get(':id')
   @Public()
-  // @Roles('ADMIN')
-  async findOne(@Param('id') id: string) {
+  findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.organizationsService.findById(id);
   }
 
   @Get('slug/:slug')
   @Public()
-  async findBySlug(@Param('slug') slug: string) {
+  findBySlug(@Param('slug') slug: string) {
     return this.organizationsService.findBySlug(slug);
   }
 
   @Post()
-  @Roles('ADMIN')
-  async create(@Body() dto: CreateOrganizationDto) {
+  @Permissions('organizations:write')
+  create(@Body() dto: CreateOrganizationDto) {
     return this.organizationsService.create(dto);
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
-  async update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto) {
+  @Permissions('organizations:write')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
     return this.organizationsService.update(id, dto);
   }
 
-  @Delete(':id')
-  @Roles('ADMIN')
-  async remove(@Param('id') id: string) {
-    return this.organizationsService.remove(id);
+  @Patch(':id/status')
+  @Permissions('organizations:write')
+  updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { isActive: boolean },
+  ) {
+    return this.organizationsService.updateStatus(id, body.isActive);
+  }
+
+  @Get(':id/members')
+  @Permissions('organizations:read')
+  getMembers(@Param('id', ParseUUIDPipe) id: string) {
+    return this.organizationsService.getMembers(id);
+  }
+
+  @Post(':id/members')
+  @Permissions('organizations:write')
+  addMember(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AddMemberDto) {
+    return this.organizationsService.addMember(id, dto);
+  }
+
+  @Patch(':id/members/:userId')
+  @Permissions('organizations:write')
+  updateMemberRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() body: { roleId: string },
+  ) {
+    return this.organizationsService.updateMemberRole(id, userId, body.roleId);
+  }
+
+  @Delete(':id/members/:userId')
+  @Permissions('organizations:write')
+  removeMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.organizationsService.removeMember(id, userId);
   }
 }

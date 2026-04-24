@@ -1,21 +1,25 @@
-import { config } from 'dotenv';
-
-config({ path: '.env' });
-
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET_KEY = 'test-jwt-secret';
-process.env.JWT_EXPIRATION_TIME = '1h';
-process.env.JWT_REFRESH_SECRET_KEY = 'test-refresh-secret';
-process.env.JWT_REFRESH_EXPIRATION_TIME = '7d';
-process.env.TEMP_PASSWORD = 'test-temp-password';
-process.env.DATABASE_HOST = 'localhost';
-process.env.DATABASE_PORT = '5432';
-process.env.DATABASE_USERNAME = 'postgres';
-process.env.DATABASE_PASSWORD = 'postgres';
-process.env.DATABASE_NAME = 'test';
-process.env.REDIS_HOST = 'localhost';
-process.env.REDIS_PORT = '6379';
-process.env.REDIS_PASSWORD = '';
-process.env.REDIS_DB = '0';
-process.env.THROTTLE_TTL = '60';
-process.env.THROTTLE_LIMIT = '100';
+process.env.PORT = '3000';
+process.env.DATABASE_URL =
+  'postgresql://postgres:postgres@localhost:5432/main_core_test?schema=public';
+process.env.JWT_PRIVATE_KEY = '';
+process.env.JWT_PUBLIC_KEY = '';
+process.env.JWT_ACCESS_EXPIRATION = '900';
+process.env.JWT_REFRESH_EXPIRATION = '604800';
+process.env.GOOGLE_CLIENT_ID = 'test';
+process.env.GOOGLE_CLIENT_SECRET = 'test';
+process.env.GOOGLE_CALLBACK_URL =
+  'http://localhost:3000/api/v1/auth/google/callback';
+process.env.SMTP_HOST = 'localhost';
+process.env.SMTP_PORT = '587';
+process.env.SMTP_USER = '';
+process.env.SMTP_PASS = '';
+process.env.SMTP_FROM = 'test@example.com';
+process.env.FRONTEND_URL = 'http://localhost:5173';
+process.env.CORS_ORIGINS = 'http://localhost:5173';
+process.env.MINIO_ENDPOINT = 'localhost';
+process.env.MINIO_PORT = '9000';
+process.env.MINIO_ACCESS_KEY = 'minioadmin';
+process.env.MINIO_SECRET_KEY = 'minioadmin';
+process.env.MINIO_BUCKET = 'main-core-test';
+process.env.MINIO_USE_SSL = 'false';

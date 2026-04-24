@@ -1,19 +1,19 @@
 services:
   app:
-    image: '${APP_IMAGE:-my-pharmacy-auth-service}:${APP_TAG:-latest}'
+    image: '${APP_IMAGE:-main-core-service}:${APP_TAG:-latest}'
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: my-pharmacy-auth-service
+    container_name: main-core-service
     restart: unless-stopped
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
       - DATABASE_URL=${DATABASE_URL}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-15m}
-      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-7d}
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-900}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-}
@@ -23,6 +23,16 @@ services:
       - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - FRONTEND_URL=${FRONTEND_URL:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio}
+      - MINIO_PORT=${MINIO_PORT:-9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_BUCKET=${MINIO_BUCKET:-main-core}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
+    depends_on:
+      minio:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -38,6 +48,30 @@ services:
         max-file: '3'
     networks:
       - internal_net
+
+  minio:
+    image: minio/minio:latest
+    container_name: main-core-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_net
+
+volumes:
+  minio_data:
 
 networks:
   internal_net:

@@ -7,39 +7,165 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum RoleName {
-  SYSTEM
-  ADMIN
-  USER
-}
-
 model User {
-  id                    String   @id @default(uuid())
-  email                 String   @unique
-  password              String
-  firstName             String?
-  lastName              String?
-  isActive              Boolean  @default(true)
-  forgotPasswordUrl     String?
-  role                  RoleName @default(USER)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  organizationId        String
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  avatarUrl String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userRoles      UserRole[]
+  passwordResets PasswordReset[]
+  auditLogs      AuditLog[]
+  refreshTokens  RefreshToken[]
 
   @@map("users")
 }
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  logoUrl     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users       User[]
+  userRoles UserRole[]
 
   @@map("organizations")
+}
+
+model Application {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  displayName  String
+  description  String?
+  clientId     String   @unique
+  clientSecret String
+  redirectUris String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles       Role[]
+  permissions Permission[]
+  auditLogs   AuditLog[]
+
+  @@map("applications")
+}
+
+model Role {
+  id           String   @id @default(uuid())
+  name         String
+  displayName  String
+  description  String?
+  isSystem     Boolean  @default(false)
+  applicationId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  application     Application?   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([name, applicationId])
+  @@map("roles")
+}
+
+model Permission {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  displayName   String
+  module        String
+  action        String
+  description   String?
+  applicationId String?
+  createdAt     DateTime @default(now())
+
+  application     Application?   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id             String       @id @default(uuid())
+  userId         String
+  roleId         String
+  organizationId String
+  createdAt      DateTime     @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, organizationId])
+  @@index([userId, organizationId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  isUsed    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_resets")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  userId         String?
+  applicationId  String?
+  action         String
+  resource       String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json?
+  organizationId String?
+  createdAt      DateTime @default(now())
+
+  user        User?        @relation(fields: [userId], references: [id])
+  application Application? @relation(fields: [applicationId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
 }

@@ -28,32 +28,32 @@ class EnvironmentVariables {
 
   @IsString()
   @IsNotEmpty()
-  JWT_ACCESS_SECRET!: string;
+  JWT_PRIVATE_KEY!: string;
 
   @IsString()
   @IsNotEmpty()
-  JWT_REFRESH_SECRET!: string;
+  JWT_PUBLIC_KEY!: string;
 
   @IsString()
   @IsOptional()
-  JWT_ACCESS_EXPIRATION: string = '15m';
+  JWT_ACCESS_EXPIRATION: string = '900';
 
   @IsString()
   @IsOptional()
-  JWT_REFRESH_EXPIRATION: string = '7d';
+  JWT_REFRESH_EXPIRATION: string = '604800';
 
   @IsString()
-  @IsNotEmpty()
-  GOOGLE_CLIENT_ID!: string;
+  @IsOptional()
+  GOOGLE_CLIENT_ID: string = '';
 
   @IsString()
-  @IsNotEmpty()
-  GOOGLE_CLIENT_SECRET!: string;
+  @IsOptional()
+  GOOGLE_CLIENT_SECRET: string = '';
 
   @IsString()
   @IsOptional()
   GOOGLE_CALLBACK_URL: string =
-    'http://localhost:3000/api/auth/google/callback';
+    'http://localhost:3000/api/v1/auth/google/callback';
 
   @IsString()
   @IsOptional()
@@ -78,6 +78,34 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   FRONTEND_URL: string = 'http://localhost:5173';
+
+  @IsString()
+  @IsOptional()
+  CORS_ORIGINS: string = 'http://localhost:5173';
+
+  @IsString()
+  @IsOptional()
+  MINIO_ENDPOINT: string = 'localhost';
+
+  @IsString()
+  @IsOptional()
+  MINIO_PORT: string = '9000';
+
+  @IsString()
+  @IsOptional()
+  MINIO_ACCESS_KEY: string = 'minioadmin';
+
+  @IsString()
+  @IsOptional()
+  MINIO_SECRET_KEY: string = 'minioadmin';
+
+  @IsString()
+  @IsOptional()
+  MINIO_BUCKET: string = 'main-core';
+
+  @IsString()
+  @IsOptional()
+  MINIO_USE_SSL: string = 'false';
 }
 
 export function validate(config: Record<string, unknown>) {

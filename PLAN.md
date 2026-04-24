@@ -1,10 +1,10 @@
-# Main Global Service — Refactoring Plan
+# Main Core Service — Refactoring Plan
 
 ## 1. Vision
 
 One NestJS modular monolith that serves as the central identity & platform hub for all business apps (pharmacy, warehouse, market, transactions). Downstream services validate JWTs issued by this platform and optionally call its API for permission checks.
 
-**Project:** `main-global-service`
+**Project:** `main-core-service`
 **Approach:** Modular monolith — one app, one database, clean module boundaries. Extract into separate services later when scale demands it.
 **Team:** Solo / 2-3 devs
 **Deployment:** Docker Compose on single VPS
@@ -15,7 +15,7 @@ One NestJS modular monolith that serves as the central identity & platform hub f
 
 ```
   ┌─────────────────────────────────────────────────────────┐
-  │                main-global-service (:3000)               │
+  │                main-core-service (:3000)               │
   │                                                         │
   │  Modules:                                               │
   │    auth/          login, register, OAuth, JWT, passwords │
@@ -47,7 +47,7 @@ One NestJS modular monolith that serves as the central identity & platform hub f
 1. **User auth** — each app verifies JWT locally using the public key (`JWT_PUBLIC_KEY` env var). No HTTP call needed.
 2. **Permission checks** — JWT includes roles; apps call `GET /api/v1/iam/check` for specific permission verification.
 3. **Service auth** — transaction service authenticates via OAuth2 client credentials, gets its own JWT.
-4. **Shared library** — `@main-global/auth-client` npm package with guards, types, and API client.
+4. **Shared library** — `@main-core/auth-client` npm package with guards, types, and API client.
 
 ---
 
@@ -688,8 +688,8 @@ async handleWelcome(data) {
 
 ```
 {bucket}/{organizationId}/{module}/{uuid}.{ext}
-e.g., main-global/org-123/users/avatar-456.jpg
-      main-global/org-123/organizations/logo-789.png
+e.g., main-core/org-123/users/avatar-456.jpg
+      main-core/org-123/organizations/logo-789.png
 ```
 
 ### Upload flow
@@ -838,7 +838,7 @@ POST /api/v1/auth/token
 | `MINIO_PORT` | No | `9000` | MinIO port |
 | `MINIO_ACCESS_KEY` | No | `minioadmin` | MinIO access key |
 | `MINIO_SECRET_KEY` | No | `minioadmin` | MinIO secret key |
-| `MINIO_BUCKET` | No | `main-global` | Default bucket |
+| `MINIO_BUCKET` | No | `main-core` | Default bucket |
 | `MINIO_USE_SSL` | No | `false` | Use HTTPS for MinIO |
 
 **Key changes from current setup:**
@@ -851,7 +851,7 @@ POST /api/v1/auth/token
 
 ## 13. Shared Library for Downstream Services
 
-### `@main-global/auth-client` npm package
+### `@main-core/auth-client` npm package
 
 Published from a `packages/` directory in this repo (or separate repo).
 
@@ -876,21 +876,21 @@ packages/auth-client/
 
 ```typescript
 // pharmacy-app/src/app.module.ts
-import { AuthClientModule } from '@main-global/auth-client';
+import { AuthClientModule } from '@main-core/auth-client';
 
 @Module({
   imports: [
     AuthClientModule.forRoot({
       publicKey: process.env.JWT_PUBLIC_KEY,
-      authServiceUrl: 'http://main-global-service:3000/api/v1',
+      authServiceUrl: 'http://main-core-service:3000/api/v1',
     }),
   ],
 })
 export class AppModule {}
 
 // pharmacy-app/src/modules/inventory/inventory.controller.ts
-import { JwtAuthGuard, PermissionsGuard } from '@main-global/auth-client';
-import { Permissions } from '@main-global/auth-client';
+import { JwtAuthGuard, PermissionsGuard } from '@main-core/auth-client';
+import { Permissions } from '@main-core/auth-client';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('inventory')
@@ -934,7 +934,7 @@ These are bugs/anti-patterns in the current code that must be fixed during refac
 
 ### Phase 1: Rename + Cleanup (1-2 days)
 
-- Rename project to `main-global-service` in `package.json`, `Dockerfile`, `docker-compose.yml`.
+- Rename project to `main-core-service` in `package.json`, `Dockerfile`, `docker-compose.yml`.
 - Generate ES256 key pair (`ec-private.pem`, `ec-public.pem`) and add to `.gitignore`.
 - Remove dead code: `.eslintrc.js`, `.example.env`, `src/common/constant.ts`.
 - Fix stale DTOs: remove `roleId`, `description`, `website`.

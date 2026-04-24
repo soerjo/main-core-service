@@ -4,7 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
+  Matches,
   MinLength,
 } from 'class-validator';
 
@@ -13,10 +13,13 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'password123', minLength: 8 })
+  @ApiProperty({ example: 'Str0ng!Pass1', minLength: 8 })
   @IsString()
   @IsNotEmpty()
   @MinLength(8)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'Password must contain uppercase, lowercase, and number',
+  })
   password: string;
 
   @ApiPropertyOptional({ example: 'John' })
@@ -29,13 +32,8 @@ export class CreateUserDto {
   @IsOptional()
   lastName?: string;
 
-  @ApiProperty({ example: 'uuid-of-organization' })
-  @IsUUID()
-  @IsNotEmpty()
-  organizationId: string;
-
-  @ApiProperty({ example: 'uuid-of-role' })
-  @IsUUID()
-  @IsNotEmpty()
-  roleId: string;
+  @ApiPropertyOptional({ example: '+1234567890' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
 }

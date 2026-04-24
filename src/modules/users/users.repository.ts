@@ -1,31 +1,55 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { $Enums, Prisma, User } from '@prisma/client';
+import type { Prisma, User } from '@prisma/client';
 
 @Injectable()
 export class UsersRepository {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+  async findAll(params: {
+    skip?: number;
+    take?: number;
+    organizationId?: string;
+  }) {
+    const where: Prisma.UserWhereInput = params.organizationId
+      ? { userRoles: { some: { organizationId: params.organizationId } } }
+      : {};
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          phone: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        skip: params.skip,
+        take: params.take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return { users, total };
   }
 
-  async findById(id: string) {
+  async findById(id: string): Promise<User> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
-        organization: {select: { id: true, name: true }},
-      }
+        userRoles: {
+          include: {
+            role: true,
+            organization: true,
+          },
+        },
+      },
     });
     if (!user) {
       throw new NotFoundException(`User with id ${id} not found`);
@@ -33,21 +57,11 @@ export class UsersRepository {
     return user;
   }
 
-  async findByEmail(email: string) {
-    return this.prisma.user.findUnique({
-      where: { email },
-    });
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
   }
 
-  async findUserRequestForgotPassword(email: string) {
-    return this.prisma.user.findUnique({
-      where: { email: email, forgotPasswordUrl: { not: null } },
-    });
-  }
-
-  async create(
-    data: Prisma.XOR<Prisma.UserCreateInput, Prisma.UserUncheckedCreateInput>,
-  ) {
+  async create(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({ data });
   }
 
@@ -61,51 +75,37 @@ export class UsersRepository {
         email: true,
         firstName: true,
         lastName: true,
+        avatarUrl: true,
+        phone: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
       },
     });
-  }
-
-  async remove(id: string) {
-    await this.findById(id);
-    return this.prisma.user.delete({ where: { id } });
   }
 
   async updatePassword(id: string, hashedPassword: string) {
     return this.prisma.user.update({
       where: { id },
       data: { password: hashedPassword },
+    });
+  }
+
+  async updateStatus(id: string, isActive: boolean) {
+    await this.findById(id);
+    return this.prisma.user.update({
+      where: { id },
+      data: { isActive },
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
         isActive: true,
-        createdAt: true,
-        updatedAt: true,
       },
     });
   }
 
-  async updateResetPasswordReq(id: string, hashedPassword: string) {
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        password: hashedPassword,
-        forgotPasswordUrl: null,
-      },
-    });
+  async delete(id: string) {
+    await this.findById(id);
+    return this.prisma.user.delete({ where: { id } });
   }
-
-  async updateHandleForgotPasswordReq(id: string, forgotPasswordUrl: string) {
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        forgotPasswordUrl: forgotPasswordUrl,
-      },
-    });
-  }
-
 }

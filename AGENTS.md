@@ -33,7 +33,7 @@ No typecheck script; use `npx tsc --noEmit`.
 
 ## Project direction
 
-This is `main-global-service` — the central identity & platform hub for all business apps (pharmacy, warehouse, market, transactions). It handles:
+This is `main-core-service` — the central identity & platform hub for all business apps (pharmacy, warehouse, market, transactions). It handles:
 
 - **Authentication** — login, register, OAuth (Google), JWT, password management
 - **User management** — profiles, CRUD, avatars
@@ -142,7 +142,7 @@ All routes under global prefix `/api/v1`. See `PLAN.md` for the complete route m
 | `MINIO_PORT` | No | `9000` |
 | `MINIO_ACCESS_KEY` | No | `minioadmin` |
 | `MINIO_SECRET_KEY` | No | `minioadmin` |
-| `MINIO_BUCKET` | No | `main-global` |
+| `MINIO_BUCKET` | No | `main-core` |
 | `MINIO_USE_SSL` | No | `false` |
 
 ## Module pattern
@@ -166,3 +166,25 @@ Modules communicate via `EventEmitter2` (in-process). Never import another modul
 - JWT expiration uses raw **seconds** as integers — no string parsing
 - Path params with UUID use `ParseUUIDPipe`
 - Pagination via `page`/`limit` query params with default `limit: 20`
+
+## Postponed features
+
+### Audit logging (postponed — storage constraint)
+
+The audit module (`src/modules/audit/`) is fully built (schema, repository, service, controller) but **all `audit.log` event emissions are commented out** to avoid DB storage growth on the current server.
+
+All commented-out lines follow this pattern:
+```typescript
+// TODO: audit.log - postponed (see AGENTS.md)
+```
+
+When storage is available, re-enable by:
+1. Uncommenting all `// TODO: audit.log` lines across services (search the codebase for the pattern)
+2. Re-adding `EventEmitter2` injection where it was removed (users, roles, permissions, applications, organizations services)
+3. Consider refactoring to use a **decorator + interceptor** pattern instead of manual emissions:
+   ```typescript
+   @Auditable('user.deleted')  // auto-extracts userId, ip, userAgent from request
+   @Delete(':id')
+   remove(@Param('id') id: string) { ... }
+   ```
+4. Add a scheduled task to archive logs older than 90 days to cold storage

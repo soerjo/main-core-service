@@ -6,31 +6,41 @@ import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { LocalStrategy } from './strategies/local.strategy.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
-import { GoogleStrategy } from './strategies/google.strategy.js';
+import { ClientCredentialsStrategy } from './strategies/client-credentials.strategy.js';
 import { UsersModule } from '../users/users.module.js';
+import { ApplicationsModule } from '../applications/applications.module.js';
+import { GoogleStrategy } from './strategies/google.strategy.js';
 
 @Module({
   imports: [
     PassportModule,
     UsersModule,
+    ApplicationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_ACCESS_SECRET')!,
+        privateKey: configService
+          .get<string>('JWT_PRIVATE_KEY')!
+          .replace(/\\n/g, '\n'),
         signOptions: {
-          expiresIn: 
-            Number(
-              configService
-                .get<string>('JWT_ACCESS_EXPIRATION')!
-                .replace(/\D/g, '') as unknown as number,
-            ) * 60, // in second
+          algorithm: 'ES256',
+          expiresIn: parseInt(
+            configService.get<string>('JWT_ACCESS_EXPIRATION') ?? '900',
+            10,
+          ),
         },
       }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy, GoogleStrategy],
+  providers: [
+    AuthService,
+    LocalStrategy,
+    JwtStrategy,
+    ClientCredentialsStrategy,
+    GoogleStrategy,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

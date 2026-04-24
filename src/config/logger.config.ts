@@ -9,7 +9,7 @@ export const loggerConfig: WinstonModuleOptions = {
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.timestamp(),
-        nestWinstonModuleUtilities.format.nestLike('API', {
+        nestWinstonModuleUtilities.format.nestLike('MainCore', {
           colors: true,
           prettyPrint: true,
         }),

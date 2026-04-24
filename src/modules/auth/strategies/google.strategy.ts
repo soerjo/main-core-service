@@ -11,9 +11,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     configService: ConfigService,
   ) {
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID')!,
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET')!,
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL')!,
+      clientID: configService.get<string>('GOOGLE_CLIENT_ID') || 'disabled',
+      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') || 'disabled',
+      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || 'disabled',
       scope: ['email', 'profile'],
     });
   }
@@ -29,12 +29,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const email = profile.emails[0].value;
     const firstName = profile.name.givenName;
     const lastName = profile.name.familyName;
-    return this.authService.validateGoogleUser(
-      email,
-      firstName,
-      lastName,
-      '4d977551-a23f-414e-9b92-d38ec3c1e1f6',
-      '4d977551-a23f-414e-9b92-d38ec3c1e1f6',
-    );
+    return this.authService.validateGoogleUser(email, firstName, lastName);
   }
 }

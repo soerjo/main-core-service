@@ -1,9 +1,20 @@
-import { Controller, Get, Patch, Delete, Param, Body } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UsersService } from './users.service.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
-import { Roles } from '../../common/decorators/roles.decorator.js';
+import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { Permissions } from '../../common/decorators/permissions.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe.js';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -12,31 +23,59 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
-  async getProfile(@CurrentUser('id') userId: string) {
-    return this.usersService.findById(userId);
+  getProfile(@CurrentUser('id') userId: string) {
+    return this.usersService.getProfile(userId);
+  }
+
+  @Patch('me')
+  updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.usersService.updateProfile(userId, dto);
   }
 
   @Get()
-  @Roles('ADMIN')
-  async findAll() {
-    return this.usersService.findAll();
+  @Permissions('users:read')
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'organizationId', required: false })
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('organizationId') organizationId?: string,
+  ) {
+    return this.usersService.findAll(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      organizationId,
+    );
   }
 
   @Get(':id')
-  @Roles('ADMIN')
-  async findOne(@Param('id') id: string) {
+  @Permissions('users:read')
+  findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.findById(id);
   }
 
+  @Post()
+  @Permissions('users:write')
+  create(@Body() dto: CreateUserDto) {
+    return this.usersService.create(dto);
+  }
+
   @Patch(':id')
-  @Roles('ADMIN')
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+  @Permissions('users:write')
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
   }
 
-  @Delete(':id')
-  @Roles('ADMIN')
-  async remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  @Patch(':id/status')
+  @Permissions('users:write')
+  updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { isActive: boolean },
+  ) {
+    return this.usersService.updateStatus(id, body.isActive);
   }
 }

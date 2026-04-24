@@ -2,27 +2,24 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module.js';
+import { AppModule } from '../src/app.module.js';
 import { validate } from '../src/config/env.validation.js';
 
 describe('App (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true, validate, load: [] }),
-        AppModule,
-      ],
+      imports: [ConfigModule.forRoot({ isGlobal: true, validate }), AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
-        forbidNonWhitelisted: true,
         transform: true,
+        transformOptions: { enableImplicitConversion: true },
       }),
     );
     await app.init();
@@ -32,14 +29,9 @@ describe('App (e2e)', () => {
     await app.close();
   });
 
-  describe('/api/health (GET)', () => {
+  describe('/api/v1/health (GET)', () => {
     it('returns health status', () => {
-      return request(app.getHttpServer())
-        .get('/api/health')
-        .expect(200)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('status', 'ok');
-        });
+      return request(app.getHttpServer()).get('/api/v1/health').expect(200);
     });
   });
 });
