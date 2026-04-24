@@ -1,130 +1,140 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welcome</title>
-  </head>
-  <body
-    style="
-      margin: 0;
-      padding: 0;
-      background-color: #f4f4f7;
-      font-family:
-        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    "
-  >
-    <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 0">
-      <tr>
-        <td align="center">
-          <table
-            width="600"
-            cellpadding="0"
-            cellspacing="0"
-            style="
-              background-color: #ffffff;
-              border-radius: 8px;
-              overflow: hidden;
-            "
-          >
-            <tr>
-              <td
-                style="
-                  background-color: #1a1a2e;
-                  padding: 32px 40px;
-                  text-align: center;
-                "
-              >
-                <h1
-                  style="
-                    margin: 0;
-                    color: #ffffff;
-                    font-size: 24px;
-                    font-weight: 600;
-                  "
-                >
-                  Welcome!
-                </h1>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 32px 40px">
-                <p
-                  style="
-                    margin: 0 0 16px;
-                    color: #374151;
-                    font-size: 16px;
-                    line-height: 1.6;
-                  "
-                >
-                  Hello {{firstName}},
-                </p>
-                <p
-                  style="
-                    margin: 0 0 24px;
-                    color: #374151;
-                    font-size: 16px;
-                    line-height: 1.6;
-                  "
-                >
-                  Your account has been successfully created. You can now log in
-                  and start using our platform.
-                </p>
-                <table
-                  width="100%"
-                  cellpadding="0"
-                  cellspacing="0"
-                  style="margin: 32px 0"
-                >
-                  <tr>
-                    <td align="center">
-                      <a
-                        href="{{loginUrl}}"
-                        style="
-                          display: inline-block;
-                          background-color: #1a1a2e;
-                          color: #ffffff;
-                          text-decoration: none;
-                          padding: 14px 32px;
-                          border-radius: 6px;
-                          font-size: 16px;
-                          font-weight: 600;
-                        "
-                      >
-                        Go to Dashboard
-                      </a>
-                    </td>
-                  </tr>
-                </table>
-                <p
-                  style="
-                    margin: 0;
-                    color: #6b7280;
-                    font-size: 14px;
-                    line-height: 1.6;
-                  "
-                >
-                  If you have any questions, feel free to contact our support team.
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td
-                style="
-                  background-color: #f9fafb;
-                  padding: 20px 40px;
-                  border-top: 1px solid #e5e7eb;
-                  text-align: center;
-                "
-              >
-                <p style="margin: 0; color: #9ca3af; font-size: 13px">
-                  Main Core Service &mdash; Central Identity Platform
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>Welcome to {{appName}}</title>
+  <style>
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#eef1f5; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <div style="display:none; font-size:1px; color:#eef1f5; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
+    Your account has been created successfully. Welcome aboard!
+    &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
+
+          <tr>
+            <td style="padding:0 0 32px; text-align:center;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                  <td style="background-color:#1a1a2e; color:#ffffff; font-size:20px; font-weight:700; letter-spacing:0.5px; padding:12px 28px; border-radius:8px;">
+                    &#9670; {{appName}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+
+                <tr>
+                  <td style="height:4px; background:linear-gradient(90deg,#4f46e5,#7c3aed,#4f46e5); font-size:0; line-height:0;">
+                    &nbsp;
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:48px 48px 0; text-align:center;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                      <tr>
+                        <td style="width:72px; height:72px; background-color:#ecfdf5; border-radius:50%; text-align:center; vertical-align:middle;">
+                          <span style="font-size:36px; line-height:72px;">&#10003;</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:24px 48px 0; text-align:center;">
+                    <h1 style="margin:0; color:#1f2937; font-size:26px; font-weight:700; line-height:1.3;">
+                      Welcome aboard, {{firstName}}!
+                    </h1>
+                    <p style="margin:12px 0 0; color:#6b7280; font-size:16px; line-height:1.6;">
+                      Your account has been created successfully. We're excited to have you on board.
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:36px 48px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                      style="background-color:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding:28px 32px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding:0 0 12px; color:#374151; font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">
+                                Getting started
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:0 0 10px; color:#4b5563; font-size:15px; line-height:1.5;">
+                                &#10148;&nbsp; Complete your profile and set your preferences
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:0 0 10px; color:#4b5563; font-size:15px; line-height:1.5;">
+                                &#10148;&nbsp; Explore your organization dashboard
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:0; color:#4b5563; font-size:15px; line-height:1.5;">
+                                &#10148;&nbsp; Invite team members to collaborate
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:0 48px 48px; text-align:center;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                      <tr>
+                        <td style="border-radius:8px; background-color:#4f46e5;">
+                          <a href="{{loginUrl}}" style="display:inline-block; padding:16px 40px; color:#ffffff; text-decoration:none; font-size:16px; font-weight:600; border-radius:8px;">
+                            Go to Dashboard &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px 0 0; text-align:center;">
+              <p style="margin:0 0 8px; color:#6b7280; font-size:13px; line-height:1.5;">
+                Need help? Contact our <a href="mailto:{{supportEmail}}" style="color:#4f46e5; text-decoration:none;">support team</a>
+              </p>
+              <p style="margin:0; color:#9ca3af; font-size:12px; line-height:1.5;">
+                &copy; {{year}} {{appName}}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>

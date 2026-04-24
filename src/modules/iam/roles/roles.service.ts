@@ -6,9 +6,7 @@ import type { AssignPermissionsDto } from './dto/assign-permissions.dto.js';
 
 @Injectable()
 export class RolesService {
-  constructor(
-    private rolesRepository: RolesRepository,
-  ) {}
+  constructor(private rolesRepository: RolesRepository) {}
 
   async findAll(applicationId?: string) {
     return this.rolesRepository.findAll(

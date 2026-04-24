@@ -6,9 +6,7 @@ import type { AddMemberDto } from './dto/add-member.dto.js';
 
 @Injectable()
 export class OrganizationsService {
-  constructor(
-    private organizationsRepository: OrganizationsRepository,
-  ) {}
+  constructor(private organizationsRepository: OrganizationsRepository) {}
 
   async findAll(page = 1, limit = 20) {
     const skip = (page - 1) * limit;

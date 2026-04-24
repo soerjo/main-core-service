@@ -4,9 +4,7 @@ import type { CreatePermissionDto } from './dto/create-permission.dto.js';
 
 @Injectable()
 export class PermissionsService {
-  constructor(
-    private permissionsRepository: PermissionsRepository,
-  ) {}
+  constructor(private permissionsRepository: PermissionsRepository) {}
 
   async findAll(applicationId?: string, module?: string) {
     return this.permissionsRepository.findAll(

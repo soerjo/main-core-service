@@ -1,98 +1,189 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Main Core Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Central identity & platform hub for all business apps (pharmacy, warehouse, market, transactions). Built as a NestJS modular monolith with PostgreSQL, MinIO, and Socket.IO.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Quick Start
 
 ```bash
-$ npm install
+# Install dependencies
+npm install
+
+# Generate ES256 key pair (first time only)
+openssl ecparam -name prime256v1 -genkey -noout -out ec-private.pem
+openssl ec -in ec-private.pem -pubout -out ec-public.pem
+
+# Copy and configure environment
+cp .env.example .env
+# Edit .env — paste the PEM keys as single-line strings with \n escapes
+
+# Setup database
+npx prisma migrate dev
+npx prisma db seed
+
+# Start dev server
+npm run start:dev
 ```
 
-## Compile and run the project
+Server runs on `http://localhost:3000` by default.
+
+- **Swagger UI**: http://localhost:3000/docs
+- **Health check**: http://localhost:3000/api/v1/health
+
+## Seeded Admin
+
+After running `npx prisma db seed`:
+
+- **Email**: `superadmin@maincore.dev`
+- **Password**: `SuperAdmin123!`
+- **Role**: `system_admin` (all permissions)
+
+## Modules
+
+| Module | Prefix | Description |
+|--------|--------|-------------|
+| Auth | `/api/v1/auth` | Register, login, Google OAuth, JWT, refresh rotation, password management, client credentials, org switching |
+| Users | `/api/v1/users` | Profile CRUD, admin user management, avatars |
+| Organizations | `/api/v1/organizations` | Multi-tenant org management, member roles |
+| IAM — Roles | `/api/v1/roles` | Role CRUD, assign permissions to roles |
+| IAM — Permissions | `/api/v1/permissions` | Permission CRUD |
+| IAM — Access | `/api/v1/iam` | Permission checks, my-permissions, my-organizations |
+| Applications | `/api/v1/applications` | Register downstream apps, OAuth2 client credentials |
+| Notifications | `/api/v1/notifications` | Email (SMTP) + WebSocket push (Socket.IO on `/ws`) |
+| Storage | `/api/v1/storage` | MinIO file upload/download, presigned URLs |
+| Audit | `/api/v1/audit` | Query audit logs (postponed — see below) |
+| Health | `/api/v1/health` | DB + MinIO health checks |
+
+## Authentication
+
+### User JWT (login/register)
+
+```
+Authorization: Bearer <token>
+```
+
+Token payload:
+```json
+{
+  "sub": "user-uuid",
+  "email": "user@example.com",
+  "type": "user",
+  "organizationId": "org-uuid",
+  "roles": ["org_admin"],
+  "iat": 1234567890,
+  "exp": 1234567890
+}
+```
+
+Signed with **ES256** (asymmetric). This service signs with a private key. Downstream services verify with the public key (`JWT_PUBLIC_KEY` env var) — no shared secrets.
+
+### Service JWT (client credentials)
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+POST /api/v1/auth/token
+{
+  "grantType": "client_credentials",
+  "clientId": "<from app registration>",
+  "clientSecret": "<shown once at creation>"
+}
 ```
 
-## Run tests
+### Refresh Token Rotation
+
+- Each refresh generates a new token pair, old token is invalidated
+- Token reuse detection: if a used refresh token is presented again, all sessions for that user are terminated
+
+### Account Lockout
+
+- 5 consecutive failed login attempts → 15-minute lockout
+- Counter resets on successful login
+
+## Authorization
+
+Guards are applied globally in order:
+
+```
+ThrottlerGuard → JwtAuthGuard → RolesGuard → PermissionsGuard
+```
+
+- `@Public()` — skip JWT/auth checks
+- `@Roles('admin')` — require role (reads from JWT, zero DB hits)
+- `@Permissions('users:write')` — require permission (resolves via cached AccessService, 5-min TTL)
+
+## Environment Variables
+
+| Variable | Required | Default |
+|----------|----------|---------|
+| `DATABASE_URL` | Yes | — |
+| `JWT_PRIVATE_KEY` | Yes | — |
+| `JWT_PUBLIC_KEY` | Yes | — |
+| `JWT_ACCESS_EXPIRATION` | No | `900` (15 min) |
+| `JWT_REFRESH_EXPIRATION` | No | `604800` (7 days) |
+| `GOOGLE_CLIENT_ID` | No | — |
+| `GOOGLE_CLIENT_SECRET` | No | — |
+| `GOOGLE_CALLBACK_URL` | No | `http://localhost:3000/api/v1/auth/google/callback` |
+| `SMTP_HOST` | No | `localhost` |
+| `SMTP_PORT` | No | `587` |
+| `SMTP_USER` | No | `''` |
+| `SMTP_PASS` | No | `''` |
+| `SMTP_FROM` | No | `noreply@example.com` |
+| `FRONTEND_URL` | No | `http://localhost:5173` |
+| `CORS_ORIGINS` | No | `http://localhost:5173` |
+| `MINIO_ENDPOINT` | No | `localhost` |
+| `MINIO_PORT` | No | `9000` |
+| `MINIO_ACCESS_KEY` | No | `minioadmin` |
+| `MINIO_SECRET_KEY` | No | `minioadmin` |
+| `MINIO_BUCKET` | No | `main-core` |
+| `MINIO_USE_SSL` | No | `false` |
+
+PEM keys must be set as single-line strings with `\n` escape characters:
+```
+JWT_PRIVATE_KEY="-----BEGIN EC PRIVATE KEY-----\nMHcCAQEE...base64...\n-----END EC PRIVATE KEY-----"
+```
+
+## Docker
 
 ```bash
-# unit tests
-$ npm run test
+# Build and run with MinIO
+docker compose up -d
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# Run migrations inside container
+docker compose exec app npx prisma migrate deploy
+docker compose exec app npx prisma db seed
 ```
 
-## Deployment
+MinIO console available at `http://localhost:9001`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Scripts
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run build          # Compile to dist/
+npm run start:dev      # Dev server with watch
+npm run lint           # ESLint with auto-fix
+npm run format         # Prettier
+npm run test           # Unit tests
+npm run test:e2e       # E2E tests
+npm run test:cov       # Coverage report
+npx tsc --noEmit       # Type check
+npx prisma migrate dev # Create migration
+npx prisma db seed     # Seed roles & permissions
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Postponed Features
 
-## Resources
+### Audit Logging
 
-Check out a few resources that may come in handy when working with NestJS:
+The audit module is fully built but **disabled** to save database storage. All `audit.log` event emissions are commented out with:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```typescript
+// TODO: audit.log - postponed (see AGENTS.md)
+```
 
-## Support
+To re-enable: uncomment all `TODO: audit.log` lines, re-add `EventEmitter2` injection where removed, and consider using a `@Auditable()` decorator pattern for cleaner implementation.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Shared Auth Library
 
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+`@main-core/auth-client` npm package for downstream services — guards, types, and API client. To be built when there are downstream services to integrate.
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED — Private project.

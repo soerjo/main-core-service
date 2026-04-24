@@ -7,9 +7,7 @@ import type { UpdateApplicationDto } from './dto/update-application.dto.js';
 
 @Injectable()
 export class ApplicationsService {
-  constructor(
-    private applicationsRepository: ApplicationsRepository,
-  ) {}
+  constructor(private applicationsRepository: ApplicationsRepository) {}
 
   async findAll() {
     const apps = await this.applicationsRepository.findAll();

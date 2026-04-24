@@ -16,12 +16,18 @@ interface SendMailOptions {
 export class EmailService {
   private transporter: Transporter;
   private readonly logger = new Logger(EmailService.name);
+  private readonly appName: string;
+  private readonly frontendUrl: string;
 
   constructor(private configService: ConfigService) {
     const host = this.configService.get<string>('SMTP_HOST')!;
     const port = parseInt(this.configService.get<string>('SMTP_PORT')!, 10);
     const user = this.configService.get<string>('SMTP_USER')!;
     const pass = this.configService.get<string>('SMTP_PASS')!;
+
+    this.appName = this.configService.get<string>('APP_NAME')!;
+    this.frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -35,13 +41,26 @@ export class EmailService {
     const from = this.configService.get<string>('SMTP_FROM')!;
 
     try {
-      const html = await this.renderTemplate(options.template, options.context);
+      const context = {
+        ...options.context,
+        appName: this.appName,
+        frontendUrl: this.frontendUrl,
+        year: new Date().getFullYear().toString(),
+      };
+
+      const html = await this.renderTemplate(options.template, context);
 
       await this.transporter.sendMail({
-        from,
+        from: `${this.appName} <${from}>`,
+        replyTo: from,
         to: options.to,
         subject: options.subject,
         html,
+        headers: {
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'X-Mailer': this.appName,
+          Precedence: 'bulk',
+        },
       });
 
       this.logger.log(`Email sent to ${options.to}: ${options.subject}`);

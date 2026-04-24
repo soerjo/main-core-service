@@ -29,9 +29,7 @@ interface UserWithRoles {
 
 @Injectable()
 export class UsersService {
-  constructor(
-    private usersRepository: UsersRepository,
-  ) {}
+  constructor(private usersRepository: UsersRepository) {}
 
   async findAll(page = 1, limit = 20, organizationId?: string) {
     const skip = (page - 1) * limit;

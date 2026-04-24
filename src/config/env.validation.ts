@@ -77,6 +77,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  APP_NAME: string = 'Main Core Service';
+
+  @IsString()
+  @IsOptional()
   FRONTEND_URL: string = 'http://localhost:5173';
 
   @IsString()
