@@ -15,6 +15,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { Permissions } from '../../common/decorators/permissions.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe.js';
+import type { AuthUser } from '../../common/interfaces/auth-user.interface.js';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -63,8 +64,8 @@ export class UsersController {
 
   @Post()
   @Permissions('users:write')
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  create(@Body() dto: CreateUserDto, @CurrentUser() adminUser: AuthUser) {
+    return this.usersService.create(dto, adminUser);
   }
 
   @Patch(':id')

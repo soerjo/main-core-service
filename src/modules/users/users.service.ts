@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
+import { PrismaService } from '../../prisma/prisma.service.js';
 import { UsersRepository } from './users.repository.js';
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import type { UpdateProfileDto } from './dto/update-profile.dto.js';
+import type { AuthUser } from '../../common/interfaces/auth-user.interface.js';
 
 interface UserWithRoles {
   id: string;
@@ -30,7 +33,12 @@ interface UserWithRoles {
 
 @Injectable()
 export class UsersService {
-  constructor(private usersRepository: UsersRepository) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    private usersRepository: UsersRepository,
+    private prisma: PrismaService,
+  ) {}
 
   async findAll(
     page = 1,
@@ -81,19 +89,62 @@ export class UsersService {
     return this.usersRepository.update(id, dto as { [key: string]: unknown });
   }
 
-  async create(dto: CreateUserDto) {
-    const user = await this.usersRepository.create({
-      email: dto.email,
-      password: dto.password,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      phone: dto.phone,
+  async create(dto: CreateUserDto, adminUser?: AuthUser) {
+    const existingUser = await this.usersRepository.findByEmail(dto.email);
+    if (existingUser) {
+      throw new BadRequestException('Email already in use');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    const organizationId = dto.organizationId ?? adminUser?.organizationId;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: dto.email,
+          password: hashedPassword,
+          firstName: dto.firstName ?? null,
+          lastName: dto.lastName ?? null,
+          phone: dto.phone ?? null,
+        },
+      });
+
+      if (organizationId) {
+        const org = await tx.organization.findUnique({
+          where: { id: organizationId },
+        });
+        if (!org) {
+          throw new BadRequestException(
+            `Organization ${organizationId} not found`,
+          );
+        }
+
+        const lowestRole = await this.findLowestRole(tx, org.applicationId);
+
+        if (lowestRole) {
+          await tx.userRole.create({
+            data: {
+              userId: user.id,
+              roleId: lowestRole.id,
+              organizationId: org.id,
+            },
+          });
+        } else {
+          this.logger.warn(
+            `No roles found for applicationId=${org.applicationId}. User created without role assignment.`,
+          );
+        }
+      }
+
+      return user;
     });
-    const { password: _password, ...result } = user;
+
+    const { password: _password, ...safeResult } = result;
 
     // TODO: audit.log - postponed (see AGENTS.md)
 
-    return result;
+    return safeResult;
   }
 
   async update(id: string, dto: UpdateUserDto) {
@@ -110,5 +161,28 @@ export class UsersService {
     // TODO: audit.log - postponed (see AGENTS.md)
 
     return result;
+  }
+
+  private async findLowestRole(
+    tx: Parameters<Parameters<typeof this.prisma.$transaction>[0]>[0],
+    applicationId: string | null,
+  ) {
+    const roles = await tx.role.findMany({
+      where: {
+        OR: [{ applicationId }, { applicationId: null }],
+      },
+      include: {
+        _count: { select: { rolePermissions: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (roles.length === 0) return null;
+
+    const minPermissionCount = Math.min(
+      ...roles.map((r) => r._count.rolePermissions),
+    );
+
+    return roles.find((r) => r._count.rolePermissions === minPermissionCount)!;
   }
 }
