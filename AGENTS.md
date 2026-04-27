@@ -93,7 +93,7 @@ src/
     applications/                  # Downstream app registration, client credentials, secret regeneration
     notifications/                 # Unified notifications
       email/                       # SMTP via nodemailer, HTML templates with {{key}} placeholders
-      websocket/                   # Socket.IO gateway (/ws), user/org rooms
+      websocket/                   # Socket.IO gateway (/ws), user/org/app rooms
     storage/                       # MinIO upload/download, presigned URLs
     audit/                         # Query audit logs with filters (POSTPONED — emissions disabled)
     health/                        # DB + MinIO health checks via @nestjs/terminus
@@ -102,13 +102,13 @@ src/
 ## Database schema (PostgreSQL via Prisma v6)
 
 - **User** — id (UUID), email (unique), password, firstName?, lastName?, avatarUrl?, phone?, isActive, timestamps
-- **Organization** — id (UUID), name, slug (unique), logoUrl?, isActive, timestamps
+- **Organization** — id (UUID), name, slug (unique per application), logoUrl?, applicationId? (FK, null=global), isActive, timestamps
 - **Application** — id (UUID), name (unique), displayName, description?, clientId (unique), clientSecret (bcrypt-hashed), redirectUris?, isActive, timestamps
 - **Role** — id (UUID), name, displayName, description?, isSystem, applicationId? (FK, null=global), timestamps
 - **Permission** — id (UUID), name (unique), displayName, module, action, description?, applicationId? (FK, null=global), createdAt
 - **RolePermission** — id (UUID), roleId (FK), permissionId (FK), unique on [roleId, permissionId]
 - **UserRole** — id (UUID), userId (FK), roleId (FK), organizationId (FK), unique on [userId, roleId, organizationId]
-- **RefreshToken** — id (UUID), userId (FK), token (unique), expiresAt, isUsed, createdAt
+- **RefreshToken** — id (UUID), userId (FK), token (unique), organizationId?, applicationId?, expiresAt, isUsed, createdAt
 - **PasswordReset** — id (UUID), userId (FK), token (unique, bcrypt-hashed), expiresAt, usedAt?, createdAt
 - **AuditLog** — id (UUID), userId?, applicationId?, action, resource?, ipAddress?, userAgent?, metadata (Json), organizationId?, createdAt
 
@@ -122,8 +122,8 @@ All routes under global prefix `/api/v1`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/register` | Public | Register — auto-creates org, assigns org_admin role |
-| POST | `/login` | Public + LocalAuthGuard | Login, returns accessToken + refreshToken |
+| POST | `/register` | Public | Register — auto-creates org (optionally scoped to applicationId), assigns org_admin role |
+| POST | `/login` | Public + LocalAuthGuard | Login (accepts optional applicationId), returns accessToken + refreshToken |
 | GET | `/google` | Public + GoogleAuthGuard | Google OAuth redirect |
 | GET | `/google/callback` | Public + GoogleAuthGuard | Google OAuth callback |
 | GET | `/verify-token` | JWT | Validates token, returns user |
@@ -133,7 +133,7 @@ All routes under global prefix `/api/v1`.
 | POST | `/forgot-password` | Public | Send reset email |
 | POST | `/reset-password` | Public | Reset password via token |
 | POST | `/token` | Public | OAuth2 client credentials grant |
-| POST | `/switch-organization` | JWT | Switch org context, get new JWT |
+| POST | `/switch-organization` | JWT | Switch org context (derives applicationId from target org), get new JWT |
 | POST | `/logout` | JWT | Invalidate refresh token |
 
 ### Users (`/api/v1/users`)
@@ -142,7 +142,7 @@ All routes under global prefix `/api/v1`.
 |--------|------|------|-------------|
 | GET | `/me` | JWT | Current user profile + roles + org memberships |
 | PATCH | `/me` | JWT | Update own profile |
-| GET | `/` | `users:read` | List users (paginated, org-scoped) |
+| GET | `/` | `users:read` | List users (paginated, filterable by organizationId, applicationId) |
 | GET | `/:id` | `users:read` | Get user by ID |
 | POST | `/` | `users:write` | Create user |
 | PATCH | `/:id` | `users:write` | Update user |
@@ -152,10 +152,10 @@ All routes under global prefix `/api/v1`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/` | Public | List organizations |
+| GET | `/` | Public | List organizations (filterable by applicationId) |
 | GET | `/:id` | Public | Get organization |
-| GET | `/slug/:slug` | Public | Get organization by slug |
-| POST | `/` | `organizations:write` | Create organization |
+| GET | `/slug/:slug` | Public | Get organization by slug (+ optional applicationId query param) |
+| POST | `/` | `organizations:write` | Create organization (optionally scoped to applicationId) |
 | PATCH | `/:id` | `organizations:write` | Update organization |
 | PATCH | `/:id/status` | `organizations:write` | Activate/deactivate |
 | GET | `/:id/members` | `organizations:read` | List org members with roles |
@@ -188,9 +188,9 @@ All routes under global prefix `/api/v1`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/check` | JWT | Check permission (`?permission=...&organizationId=...`) |
-| GET | `/my-permissions` | JWT | All permissions for current user in current org |
-| GET | `/my-organizations` | JWT | Organizations the current user belongs to |
+| GET | `/check` | JWT | Check permission (`?permission=...&organizationId=...&applicationId=...`) |
+| GET | `/my-permissions` | JWT | All permissions for current user in current org + app context |
+| GET | `/my-organizations` | JWT | Organizations the current user belongs to (filterable by applicationId) |
 
 ### Applications (`/api/v1/applications`)
 
@@ -245,18 +245,31 @@ All routes under global prefix `/api/v1`.
 
 ## Authentication
 
-- **Login**: Local strategy validates email/password, checks `isActive`, resolves roles for organization, issues JWT
+- **Login**: Local strategy validates email/password, checks `isActive`, resolves roles for organization, issues JWT. Accepts optional `applicationId` to scope the session to a specific app — resolves the user's first org within that app.
 - **Account lockout**: 5 consecutive failed logins → 15-minute lock on same email
 - **Google OAuth**: passport-google-oauth20 — no hardcoded org, OAuth users prompted to join/create org. Falls back gracefully when `GOOGLE_CLIENT_ID` is not set.
-- **JWT**: passport-jwt verifies Bearer token using ES256 public key; `JwtStrategy.validate()` checks user exists and is active
+- **JWT**: passport-jwt verifies Bearer token using ES256 public key; `JwtStrategy.validate()` returns the decoded payload directly
 - **RolesGuard**: reads roles from JWT payload (zero DB hits)
-- **PermissionsGuard**: resolves roles → permissions via `AccessService` with in-memory cache (5 min TTL)
+- **PermissionsGuard**: reads permissions from JWT payload directly (zero DB hits for permission checks)
 - **Client credentials**: OAuth2 flow for service-to-service auth — validates clientId + bcrypt-hashed clientSecret
-- **Refresh**: rotation pattern — old refresh token invalidated, new pair issued, replay detection (revokes all sessions on reuse)
-- **Organization switching**: validates membership, issues new JWT with different org context
-- **Token payload (user)**: `{ sub, email, type: "user", organizationId, roles: string[], iat, exp }` — signed with ES256 private key
+- **Refresh**: rotation pattern — old refresh token invalidated, new pair issued, replay detection (revokes all sessions on reuse). Refresh tokens store `organizationId` + `applicationId` to maintain session context across refreshes.
+- **Organization switching**: validates membership, derives `applicationId` from target org, issues new JWT with different org + app context
+- **Token payload (user)**: `{ sub, email, type: "user", organizationId, applicationId?, roles: string[], permissions: string[], iat, exp }` — signed with ES256 private key
 - **Token payload (service)**: `{ sub: appName, type: "service", applicationId, permissions, iat, exp }` — signed with ES256 private key
 - **Token signing**: ES256 asymmetric (ECDSA P-256). Private key signs, public key verifies. PEM keys stored as single-line `\n`-escaped strings in env vars.
+
+## Application-scoped organizations
+
+Organizations can optionally belong to a specific `Application` via `applicationId` (nullable FK). When `null`, the org is global (not tied to any app). This enables multi-app scenarios where a single user has separate organizations per downstream app (e.g., Laundry Serpong, Warehouse Bogor, Shop Maju).
+
+Key behaviors:
+- **Login with applicationId**: `POST /auth/login` accepts optional `applicationId`. The auth service finds the user's first org in that app and scopes the JWT accordingly.
+- **Register with applicationId**: `POST /auth/register` accepts optional `applicationId`. The auto-created org belongs to that app.
+- **Claims resolution**: `resolveUserClaims()` filters roles by `applicationId` — global roles (`null`) are always included; app-scoped roles only appear when the session's `applicationId` matches.
+- **Slug uniqueness**: `@@unique([slug, applicationId])` — the same slug can exist in different apps (e.g., "bogor" in both Laundry and Warehouse apps).
+- **Role-app consistency**: When adding a member to an app-scoped org, the assigned role must be either global (`applicationId: null`) or belong to the same app.
+- **AccessService cache**: Cache key includes `applicationId` (`${userId}:${orgId}:${appId ?? 'global'}:${roles}`) to avoid cross-app permission leaks.
+- **WebSocket**: Clients with `applicationId` in their JWT auto-join `app:${applicationId}` room for app-wide notifications.
 
 ## Environment variables
 

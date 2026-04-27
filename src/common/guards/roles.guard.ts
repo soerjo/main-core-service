@@ -1,10 +1,10 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator.js';
-import type { JwtUserPayload } from '../interfaces/jwt-payload.interface.js';
+import type { JwtPayload } from '../interfaces/jwt-payload.interface.js';
 
 interface GuardRequest {
-  user?: JwtUserPayload;
+  user?: JwtPayload;
 }
 
 @Injectable()

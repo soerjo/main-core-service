@@ -28,16 +28,19 @@ model User {
 }
 
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  logoUrl   String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid())
+  name           String
+  slug           String
+  logoUrl        String?
+  applicationId  String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  userRoles UserRole[]
+  application Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  userRoles   UserRole[]
 
+  @@unique([slug, applicationId])
   @@map("organizations")
 }
 
@@ -53,9 +56,10 @@ model Application {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  roles       Role[]
-  permissions Permission[]
-  auditLogs   AuditLog[]
+  roles          Role[]
+  permissions    Permission[]
+  organizations  Organization[]
+  auditLogs      AuditLog[]
 
   @@map("applications")
 }
@@ -122,16 +126,19 @@ model UserRole {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid())
-  userId    String
-  token     String    @unique
-  expiresAt DateTime
-  isUsed    Boolean   @default(false)
-  createdAt DateTime  @default(now())
+  id             String    @id @default(uuid())
+  userId         String
+  token          String    @unique
+  organizationId String?
+  applicationId  String?
+  expiresAt      DateTime
+  isUsed         Boolean   @default(false)
+  createdAt      DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }
 

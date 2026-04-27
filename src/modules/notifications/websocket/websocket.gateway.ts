@@ -13,6 +13,7 @@ interface DecodedUserToken {
   sub: string;
   type: 'user';
   organizationId: string;
+  applicationId?: string;
   roles: string[];
 }
 
@@ -56,6 +57,9 @@ export class WebsocketGateway
         void client.join(`user:${decoded.sub}`);
         if (decoded.organizationId) {
           void client.join(`org:${decoded.organizationId}`);
+        }
+        if (decoded.applicationId) {
+          void client.join(`app:${decoded.applicationId}`);
         }
         this.logger.log(
           `Client connected: ${client.id} user:${decoded.sub} org:${decoded.organizationId}`,

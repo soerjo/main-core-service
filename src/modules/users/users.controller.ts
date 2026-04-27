@@ -40,15 +40,18 @@ export class UsersController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'organizationId', required: false })
+  @ApiQuery({ name: 'applicationId', required: false })
   findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('organizationId') organizationId?: string,
+    @Query('applicationId') applicationId?: string,
   ) {
     return this.usersService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       organizationId,
+      applicationId,
     );
   }
 

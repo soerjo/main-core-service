@@ -71,13 +71,23 @@ export class RolesRepository {
     });
   }
 
-  async findRolesByUserAndOrg(userId: string, organizationId: string) {
-    return this.prisma.role.findMany({
-      where: {
-        userRoles: {
-          some: { userId, organizationId },
-        },
+  async findRolesByUserAndOrg(
+    userId: string,
+    organizationId: string,
+    applicationId?: string,
+  ) {
+    const where: Prisma.RoleWhereInput = {
+      userRoles: {
+        some: { userId, organizationId },
       },
+    };
+
+    if (applicationId) {
+      where.OR = [{ applicationId: null }, { applicationId }];
+    }
+
+    return this.prisma.role.findMany({
+      where,
       include: { rolePermissions: { include: { permission: true } } },
     });
   }

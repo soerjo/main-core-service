@@ -1,3 +1,4 @@
+import { Cron } from '@nestjs/schedule';
 import {
   Injectable,
   BadRequestException,
@@ -17,6 +18,20 @@ import type { User } from '@prisma/client';
 import type { RegisterDto } from './dto/register.dto.js';
 import type { ClientCredentialsDto } from './dto/client-credentials.dto.js';
 import type { SwitchOrganizationDto } from './dto/switch-organization.dto.js';
+
+interface UserClaims {
+  roles: string[];
+  permissions: string[];
+}
+
+interface TokenInput {
+  sub: string;
+  email: string;
+  organizationId: string;
+  applicationId?: string;
+  roles: string[];
+  permissions: string[];
+}
 
 @Injectable()
 export class AuthService {
@@ -75,10 +90,19 @@ export class AuthService {
     return this.buildAuthUser(user);
   }
 
-  async register(dto: RegisterDto, ipAddress?: string, userAgent?: string) {
+  async register(dto: RegisterDto, _ipAddress?: string, _userAgent?: string) {
     const existingUser = await this.usersRepository.findByEmail(dto.email);
     if (existingUser) {
       throw new BadRequestException('Email already in use');
+    }
+
+    if (dto.applicationId) {
+      const app = await this.prisma.application.findUnique({
+        where: { id: dto.applicationId },
+      });
+      if (!app || !app.isActive) {
+        throw new BadRequestException('Invalid or inactive application');
+      }
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -92,6 +116,7 @@ export class AuthService {
         data: {
           name: `Organization of ${dto.firstName ?? dto.email}`,
           slug: `org-${uuidv4().slice(0, 8)}`,
+          applicationId: dto.applicationId ?? null,
         },
       });
 
@@ -114,17 +139,30 @@ export class AuthService {
         });
       }
 
-      return { user, organization, roleId: systemAdminRole?.name };
+      return { user, organization };
     });
 
-    const authUser = await this.resolveAuthUser(
+    const applicationId = result.organization.applicationId;
+    const claims = await this.resolveUserClaims(
       result.user.id,
       result.organization.id,
+      applicationId ?? undefined,
     );
 
-    const tokens = this.generateTokens(authUser);
+    const tokens = this.generateTokens({
+      sub: result.user.id,
+      email: result.user.email,
+      organizationId: result.organization.id,
+      applicationId: applicationId ?? undefined,
+      ...claims,
+    });
 
-    await this.storeRefreshToken(authUser.id, tokens.refreshToken);
+    await this.storeRefreshToken(
+      result.user.id,
+      tokens.refreshToken,
+      result.organization.id,
+      applicationId ?? undefined,
+    );
 
     // TODO: audit.log - postponed (see AGENTS.md)
 
@@ -142,12 +180,51 @@ export class AuthService {
     };
   }
 
-  async login(authUser: AuthUser, ipAddress?: string, userAgent?: string) {
-    const roles = await this.resolveRoles(authUser.id, authUser.organizationId);
-    const enrichedUser: AuthUser = { ...authUser, roles };
+  async login(authUser: AuthUser, applicationId?: string) {
+    let resolvedOrgId = authUser.organizationId;
+    let resolvedAppId = authUser.applicationId;
 
-    const tokens = this.generateTokens(enrichedUser);
-    await this.storeRefreshToken(authUser.id, tokens.refreshToken);
+    if (applicationId) {
+      const userOrgInApp = await this.prisma.userRole.findFirst({
+        where: {
+          userId: authUser.sub,
+          organization: { applicationId },
+        },
+        include: {
+          organization: { select: { id: true, applicationId: true } },
+        },
+      });
+
+      if (!userOrgInApp) {
+        throw new BadRequestException(
+          'You do not have an organization in this application',
+        );
+      }
+
+      resolvedOrgId = userOrgInApp.organization.id;
+      resolvedAppId = userOrgInApp.organization.applicationId ?? undefined;
+    }
+
+    const claims = await this.resolveUserClaims(
+      authUser.sub,
+      resolvedOrgId,
+      resolvedAppId,
+    );
+
+    const tokens = this.generateTokens({
+      sub: authUser.sub,
+      email: authUser.email,
+      organizationId: resolvedOrgId,
+      applicationId: resolvedAppId,
+      ...claims,
+    });
+
+    await this.storeRefreshToken(
+      authUser.sub,
+      tokens.refreshToken,
+      resolvedOrgId,
+      resolvedAppId,
+    );
 
     // TODO: audit.log - postponed (see AGENTS.md)
 
@@ -188,8 +265,29 @@ export class AuthService {
       throw new UnauthorizedException('User no longer exists or is inactive');
     }
 
-    const tokens = this.generateTokens(authUser);
-    await this.storeRefreshToken(authUser.id, tokens.refreshToken);
+    const organizationId = stored.organizationId ?? authUser.organizationId;
+    const applicationId = stored.applicationId ?? authUser.applicationId;
+
+    const claims = await this.resolveUserClaims(
+      authUser.sub,
+      organizationId,
+      applicationId,
+    );
+
+    const tokens = this.generateTokens({
+      sub: authUser.sub,
+      email: authUser.email,
+      organizationId,
+      applicationId,
+      ...claims,
+    });
+
+    await this.storeRefreshToken(
+      authUser.sub,
+      tokens.refreshToken,
+      organizationId,
+      applicationId,
+    );
 
     return tokens;
   }
@@ -243,7 +341,6 @@ export class AuthService {
   async switchOrganization(userId: string, dto: SwitchOrganizationDto) {
     const membership = await this.prisma.userRole.findFirst({
       where: { userId, organizationId: dto.organizationId },
-      include: { role: true, organization: true },
     });
 
     if (!membership) {
@@ -252,20 +349,40 @@ export class AuthService {
       );
     }
 
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: dto.organizationId },
+    });
+
+    if (!organization) {
+      throw new BadRequestException('Organization not found');
+    }
+
     const authUser = await this.validateUserById(userId);
     if (!authUser) {
       throw new UnauthorizedException('User not found or inactive');
     }
 
-    const roles = await this.resolveRoles(userId, dto.organizationId);
-    const enrichedUser: AuthUser = {
-      ...authUser,
-      organizationId: dto.organizationId,
-      roles,
-    };
+    const applicationId = organization.applicationId ?? undefined;
+    const claims = await this.resolveUserClaims(
+      userId,
+      dto.organizationId,
+      applicationId,
+    );
 
-    const tokens = this.generateTokens(enrichedUser);
-    await this.storeRefreshToken(userId, tokens.refreshToken);
+    const tokens = this.generateTokens({
+      sub: userId,
+      email: authUser.email,
+      organizationId: dto.organizationId,
+      applicationId,
+      ...claims,
+    });
+
+    await this.storeRefreshToken(
+      userId,
+      tokens.refreshToken,
+      dto.organizationId,
+      applicationId,
+    );
 
     return tokens;
   }
@@ -406,23 +523,41 @@ export class AuthService {
     return this.buildAuthUser(user);
   }
 
-  private generateTokens(user: AuthUser) {
+  private generateTokens(input: TokenInput) {
     const payload = {
-      sub: user.id,
-      email: user.email,
-      type: 'user',
-      organizationId: user.organizationId,
-      roles: user.roles ?? [],
+      sub: input.sub,
+      email: input.email,
+      type: 'user' as const,
+      organizationId: input.organizationId,
+      applicationId: input.applicationId,
+      roles: input.roles,
+      permissions: input.permissions,
     };
 
     const accessToken = this.jwtService.sign(payload);
-
     const refreshToken = uuidv4() + uuidv4();
 
     return { accessToken, refreshToken };
   }
 
-  private async storeRefreshToken(userId: string, token: string) {
+  @Cron('0 0 * * *')
+  async cleanupExpiredRefreshTokens() {
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: {
+        OR: [{ expiresAt: { lt: new Date() } }, { isUsed: true }],
+      },
+    });
+    if (result.count > 0) {
+      this.logger.log(`Cleaned up ${result.count} expired/used refresh tokens`);
+    }
+  }
+
+  private async storeRefreshToken(
+    userId: string,
+    token: string,
+    organizationId?: string,
+    applicationId?: string,
+  ) {
     const expirationSeconds = parseInt(
       this.configService.get<string>('JWT_REFRESH_EXPIRATION') ?? '604800',
       10,
@@ -432,52 +567,73 @@ export class AuthService {
       data: {
         userId,
         token,
+        organizationId: organizationId ?? null,
+        applicationId: applicationId ?? null,
         expiresAt: new Date(Date.now() + expirationSeconds * 1000),
       },
     });
   }
 
-  private async resolveRoles(
+  private async resolveUserClaims(
     userId: string,
     organizationId: string,
-  ): Promise<string[]> {
+    applicationId?: string,
+  ): Promise<UserClaims> {
     const userRoles = await this.prisma.userRole.findMany({
       where: { userId, organizationId },
-      include: { role: true },
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: { permission: { select: { name: true } } },
+            },
+          },
+        },
+      },
     });
-    return userRoles.map((ur) => ur.role.name);
-  }
 
-  private async resolveAuthUser(
-    userId: string,
-    organizationId: string,
-  ): Promise<AuthUser> {
-    const user = await this.usersRepository.findById(userId);
-    const roles = await this.resolveRoles(userId, organizationId);
+    const filteredRoles = applicationId
+      ? userRoles.filter(
+          (ur) =>
+            ur.role.applicationId === null ||
+            ur.role.applicationId === applicationId,
+        )
+      : userRoles;
+
     return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      avatarUrl: user.avatarUrl,
-      phone: user.phone,
-      isActive: user.isActive,
-      organizationId,
-      roles,
+      roles: filteredRoles.map((ur) => ur.role.name),
+      permissions: [
+        ...new Set(
+          filteredRoles.flatMap((ur) =>
+            ur.role.rolePermissions.map((rp) => rp.permission.name),
+          ),
+        ),
+      ],
     };
   }
 
   private buildAuthUser(user: User): AuthUser {
+    const userRoles = (user as unknown as Record<string, unknown>).userRoles as
+      | {
+          organizationId: string;
+          role: { name: string };
+          organization: { applicationId?: string | null };
+        }[]
+      | undefined;
+
+    const firstOrg = userRoles?.[0];
+
     return {
-      id: user.id,
+      sub: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       avatarUrl: user.avatarUrl ?? null,
       phone: user.phone ?? null,
       isActive: user.isActive,
-      organizationId: '',
-      roles: [],
+      organizationId: firstOrg?.organizationId ?? '',
+      applicationId: firstOrg?.organization?.applicationId ?? undefined,
+      roles: userRoles?.map((ur) => ur.role.name) ?? [],
     };
   }
 }

@@ -6,14 +6,23 @@ import type { Organization } from '@prisma/client';
 export class OrganizationsRepository {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(params?: { skip?: number; take?: number }) {
+  async findAll(params?: {
+    skip?: number;
+    take?: number;
+    applicationId?: string;
+  }) {
+    const where = params?.applicationId
+      ? { applicationId: params.applicationId }
+      : undefined;
+
     const [organizations, total] = await Promise.all([
       this.prisma.organization.findMany({
+        where,
         skip: params?.skip,
         take: params?.take,
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.organization.count(),
+      this.prisma.organization.count({ where }),
     ]);
     return { organizations, total };
   }
@@ -26,8 +35,13 @@ export class OrganizationsRepository {
     return org;
   }
 
-  async findBySlug(slug: string): Promise<Organization> {
-    const org = await this.prisma.organization.findUnique({ where: { slug } });
+  async findBySlug(
+    slug: string,
+    applicationId?: string,
+  ): Promise<Organization> {
+    const org = await this.prisma.organization.findFirst({
+      where: { slug, applicationId: applicationId ?? null },
+    });
     if (!org) {
       throw new NotFoundException(`Organization with slug ${slug} not found`);
     }
@@ -38,6 +52,7 @@ export class OrganizationsRepository {
     name: string;
     slug: string;
     logoUrl?: string;
+    applicationId?: string;
   }): Promise<Organization> {
     return this.prisma.organization.create({ data });
   }

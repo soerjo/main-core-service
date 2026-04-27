@@ -1,19 +1,19 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ClientCredentialsDto {
-  @ApiProperty({ example: 'grantType' })
+  @ApiPropertyOptional({ example: 'client_credentials' })
   @IsString()
-  @IsNotEmpty()
-  grantType: string;
+  @IsOptional()
+  grantType?: string;
 
   @ApiProperty({ example: 'uuid-client-id' })
   @IsString()
   @IsNotEmpty()
-  clientId: string;
+  clientId!: string;
 
   @ApiProperty({ example: 'plain-text-secret' })
   @IsString()
   @IsNotEmpty()
-  clientSecret: string;
+  clientSecret!: string;
 }

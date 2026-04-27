@@ -1,20 +1,21 @@
-export interface JwtUserPayload {
+export interface JwtBasePayload {
   sub: string;
-  email: string;
-  type: 'user';
-  organizationId: string;
-  roles: string[];
+  permissions: string[];
   iat: number;
   exp: number;
 }
 
-export interface JwtServicePayload {
-  sub: string;
+export interface JwtUserPayload extends JwtBasePayload {
+  type: 'user';
+  email: string;
+  organizationId: string;
+  applicationId?: string;
+  roles: string[];
+}
+
+export interface JwtServicePayload extends JwtBasePayload {
   type: 'service';
   applicationId: string;
-  permissions: string[];
-  iat: number;
-  exp: number;
 }
 
 export type JwtPayload = JwtUserPayload | JwtServicePayload;

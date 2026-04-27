@@ -5,12 +5,12 @@ export class CreateApplicationDto {
   @ApiProperty({ example: 'pharmacy' })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 'Pharmacy App' })
   @IsString()
   @IsNotEmpty()
-  displayName: string;
+  displayName!: string;
 
   @ApiPropertyOptional({ example: 'Pharmacy management application' })
   @IsString()

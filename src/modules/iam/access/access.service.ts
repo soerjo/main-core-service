@@ -21,8 +21,9 @@ export class AccessService {
     userId: string,
     organizationId: string,
     roleNames: string[],
+    applicationId?: string,
   ): Promise<string[]> {
-    const cacheKey = `${userId}:${organizationId}:${roleNames.sort().join(',')}`;
+    const cacheKey = `${userId}:${organizationId}:${applicationId ?? 'global'}:${roleNames.sort().join(',')}`;
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.permissions;
@@ -31,6 +32,7 @@ export class AccessService {
     const roles = await this.rolesRepository.findRolesByUserAndOrg(
       userId,
       organizationId,
+      applicationId,
     );
 
     const permissions = [
@@ -52,19 +54,28 @@ export class AccessService {
     organizationId: string,
     roleNames: string[],
     requiredPermission: string,
+    applicationId?: string,
   ): Promise<boolean> {
     const permissions = await this.getUserPermissions(
       userId,
       organizationId,
       roleNames,
+      applicationId,
     );
     return permissions.includes(requiredPermission);
   }
 
-  clearCache(userId?: string, organizationId?: string): void {
+  clearCache(
+    userId?: string,
+    organizationId?: string,
+    applicationId?: string,
+  ): void {
     if (userId && organizationId) {
+      const prefix = applicationId
+        ? `${userId}:${organizationId}:${applicationId}:`
+        : `${userId}:${organizationId}:`;
       for (const key of this.cache.keys()) {
-        if (key.startsWith(`${userId}:${organizationId}:`)) {
+        if (key.startsWith(prefix)) {
           this.cache.delete(key);
         }
       }
@@ -73,9 +84,18 @@ export class AccessService {
     }
   }
 
-  async getUserOrganizations(userId: string) {
+  async getUserOrganizations(userId: string, applicationId?: string) {
+    const where: { userId: string; organization?: { applicationId?: string } } =
+      {
+        userId,
+      };
+
+    if (applicationId) {
+      where.organization = { applicationId };
+    }
+
     const userRoles = await this.prisma.userRole.findMany({
-      where: { userId },
+      where,
       include: {
         organization: true,
         role: true,
@@ -84,7 +104,13 @@ export class AccessService {
 
     const orgMap = new Map<
       string,
-      { id: string; name: string; slug: string; roles: string[] }
+      {
+        id: string;
+        name: string;
+        slug: string;
+        applicationId: string | null;
+        roles: string[];
+      }
     >();
     for (const ur of userRoles) {
       const existing = orgMap.get(ur.organizationId);
@@ -95,6 +121,7 @@ export class AccessService {
           id: ur.organization.id,
           name: ur.organization.name,
           slug: ur.organization.slug,
+          applicationId: ur.organization.applicationId,
           roles: [ur.role.name],
         });
       }

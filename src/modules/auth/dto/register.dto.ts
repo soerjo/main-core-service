@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MinLength,
 } from 'class-validator';
@@ -32,4 +33,9 @@ export class RegisterDto {
   @IsString()
   @IsOptional()
   lastName?: string;
+
+  @ApiPropertyOptional({ example: 'uuid-of-application' })
+  @IsUUID()
+  @IsOptional()
+  applicationId?: string;
 }

@@ -9,7 +9,7 @@ import {
   Res,
   Req,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
@@ -26,6 +26,8 @@ import { GoogleAuthGuard } from './google-auth.guard.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/interfaces/auth-user.interface.js';
+import type { JwtUserPayload } from '../../common/interfaces/jwt-payload.interface.js';
+import { LoginDto } from './dto/login.dto.js';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -44,8 +46,8 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Req() req: Request & { user: AuthUser }) {
-    return this.authService.login(req.user, req.ip, req.headers['user-agent']);
+  login(@Body() loginDto: LoginDto, @Req() req: Request & { user: AuthUser }) {
+    return this.authService.login(req.user, loginDto.applicationId);
   }
 
   @Public()
@@ -60,19 +62,16 @@ export class AuthController {
     @Req() req: Request & { user: AuthUser },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const tokens = await this.authService.login(
-      req.user,
-      req.ip,
-      req.headers['user-agent'],
-    );
+    const tokens = await this.authService.login(req.user);
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     const redirectUrl = `${frontendUrl}/auth/google/callback?accessToken=${encodeURIComponent(tokens.accessToken)}&refreshToken=${encodeURIComponent(tokens.refreshToken)}`;
     res.redirect(redirectUrl);
   }
 
   @Get('verify-token')
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  verifyToken(@CurrentUser() user: AuthUser) {
+  verifyToken(@CurrentUser() user: JwtUserPayload) {
     return { valid: true, user };
   }
 
@@ -129,6 +128,7 @@ export class AuthController {
   }
 
   @Post('switch-organization')
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   switchOrganization(
     @CurrentUser('id') userId: string,

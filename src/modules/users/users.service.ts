@@ -22,6 +22,7 @@ interface UserWithRoles {
       slug: string;
       logoUrl: string | null;
       isActive: boolean;
+      applicationId: string | null;
     };
     role: { id: string; name: string; displayName: string };
   }>;
@@ -31,12 +32,18 @@ interface UserWithRoles {
 export class UsersService {
   constructor(private usersRepository: UsersRepository) {}
 
-  async findAll(page = 1, limit = 20, organizationId?: string) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    organizationId?: string,
+    applicationId?: string,
+  ) {
     const skip = (page - 1) * limit;
     const { users, total } = await this.usersRepository.findAll({
       skip,
       take: limit,
       organizationId,
+      applicationId,
     });
     return {
       data: users,

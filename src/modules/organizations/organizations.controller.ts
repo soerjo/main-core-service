@@ -27,10 +27,16 @@ export class OrganizationsController {
   @Public()
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+  @ApiQuery({ name: 'applicationId', required: false })
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('applicationId') applicationId?: string,
+  ) {
     return this.organizationsService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      applicationId,
     );
   }
 
@@ -42,8 +48,12 @@ export class OrganizationsController {
 
   @Get('slug/:slug')
   @Public()
-  findBySlug(@Param('slug') slug: string) {
-    return this.organizationsService.findBySlug(slug);
+  @ApiQuery({ name: 'applicationId', required: false })
+  findBySlug(
+    @Param('slug') slug: string,
+    @Query('applicationId') applicationId?: string,
+  ) {
+    return this.organizationsService.findBySlug(slug, applicationId);
   }
 
   @Post()

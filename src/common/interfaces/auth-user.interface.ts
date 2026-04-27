@@ -1,5 +1,5 @@
 export interface AuthUser {
-  id: string;
+  sub: string;
   email: string;
   firstName: string | null;
   lastName: string | null;
@@ -7,11 +7,6 @@ export interface AuthUser {
   phone: string | null;
   isActive: boolean;
   organizationId: string;
+  applicationId?: string;
   roles: string[];
-}
-
-export interface AuthServiceAccount {
-  applicationId: string;
-  name: string;
-  permissions: string[];
 }

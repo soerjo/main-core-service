@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD } from '@nestjs/core';
 import { WinstonModule } from 'nest-winston';
@@ -23,6 +24,7 @@ import { validate } from './config/env.validation.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate }),
+    ScheduleModule.forRoot(),
     WinstonModule.forRoot(loggerConfig),
     EventEmitterModule.forRoot({ wildcard: true }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 30 }]),

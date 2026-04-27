@@ -10,10 +10,21 @@ export class UsersRepository {
     skip?: number;
     take?: number;
     organizationId?: string;
+    applicationId?: string;
   }) {
-    const where: Prisma.UserWhereInput = params.organizationId
-      ? { userRoles: { some: { organizationId: params.organizationId } } }
-      : {};
+    const where: Prisma.UserWhereInput = {};
+
+    if (params.organizationId) {
+      where.userRoles = { some: { organizationId: params.organizationId } };
+    }
+
+    if (params.applicationId && !params.organizationId) {
+      where.userRoles = {
+        some: {
+          organization: { applicationId: params.applicationId },
+        },
+      };
+    }
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -58,7 +69,17 @@ export class UsersRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+            organization: true,
+          },
+        },
+      },
+    });
   }
 
   async create(data: Prisma.UserCreateInput): Promise<User> {
