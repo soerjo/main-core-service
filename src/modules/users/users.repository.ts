@@ -2,6 +2,29 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { Prisma, User } from '@prisma/client';
 
+export type UserWithRoles = Prisma.UserGetPayload<{
+  include: {
+    userRoles: {
+      include: {
+        role: true;
+        organization: true;
+      };
+    };
+  };
+}>;
+
+const USER_PUBLIC_SELECT = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  avatarUrl: true,
+  phone: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.UserSelect;
+
 @Injectable()
 export class UsersRepository {
   constructor(private prisma: PrismaService) {}
@@ -11,8 +34,17 @@ export class UsersRepository {
     take?: number;
     organizationId?: string;
     applicationId?: string;
+    search?: string;
   }) {
     const where: Prisma.UserWhereInput = {};
+
+    if (params.search) {
+      where.OR = [
+        { firstName: { contains: params.search, mode: 'insensitive' } },
+        { lastName: { contains: params.search, mode: 'insensitive' } },
+        { email: { contains: params.search, mode: 'insensitive' } },
+      ];
+    }
 
     if (params.organizationId) {
       where.userRoles = { some: { organizationId: params.organizationId } };
@@ -29,17 +61,7 @@ export class UsersRepository {
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          avatarUrl: true,
-          phone: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: USER_PUBLIC_SELECT,
         skip: params.skip,
         take: params.take,
         orderBy: { createdAt: 'desc' },
@@ -50,7 +72,7 @@ export class UsersRepository {
     return { users, total };
   }
 
-  async findById(id: string): Promise<User> {
+  async findById(id: string): Promise<UserWithRoles> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -68,7 +90,7 @@ export class UsersRepository {
     return user;
   }
 
-  async findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<UserWithRoles | null> {
     return this.prisma.user.findUnique({
       where: { email },
       include: {
@@ -82,26 +104,69 @@ export class UsersRepository {
     });
   }
 
+  async findByEmailLean(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  async findOrganizationById(id: string) {
+    return this.prisma.organization.findUnique({ where: { id } });
+  }
+
+  async findRolesWithPermissionCount(applicationId: string | null) {
+    return this.prisma.role.findMany({
+      where: {
+        OR: [{ applicationId }, { applicationId: null }],
+      },
+      include: {
+        _count: { select: { rolePermissions: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   async create(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({ data });
   }
 
+  async createWithMembership(params: {
+    email: string;
+    password: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    organizationId?: string;
+    roleId?: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: params.email,
+          password: params.password,
+          firstName: params.firstName,
+          lastName: params.lastName,
+          phone: params.phone,
+        },
+      });
+
+      if (params.organizationId && params.roleId) {
+        await tx.userRole.create({
+          data: {
+            userId: user.id,
+            roleId: params.roleId,
+            organizationId: params.organizationId,
+          },
+        });
+      }
+
+      return user;
+    });
+  }
+
   async update(id: string, data: { [key: string]: unknown }) {
-    await this.findById(id);
     return this.prisma.user.update({
       where: { id },
       data,
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        avatarUrl: true,
-        phone: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: USER_PUBLIC_SELECT,
     });
   }
 
@@ -113,7 +178,6 @@ export class UsersRepository {
   }
 
   async updateStatus(id: string, isActive: boolean) {
-    await this.findById(id);
     return this.prisma.user.update({
       where: { id },
       data: { isActive },
@@ -125,8 +189,11 @@ export class UsersRepository {
     });
   }
 
-  async delete(id: string) {
-    await this.findById(id);
-    return this.prisma.user.delete({ where: { id } });
+  async softDelete(id: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: USER_PUBLIC_SELECT,
+    });
   }
 }

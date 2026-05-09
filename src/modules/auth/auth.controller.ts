@@ -84,14 +84,14 @@ export class AuthController {
 
   @Post('set-password')
   @HttpCode(HttpStatus.OK)
-  setPassword(@CurrentUser('id') userId: string, @Body() dto: SetPasswordDto) {
+  setPassword(@CurrentUser('sub') userId: string, @Body() dto: SetPasswordDto) {
     return this.authService.setPassword(userId, dto.newPassword);
   }
 
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
   changePassword(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(
@@ -131,7 +131,7 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   switchOrganization(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: SwitchOrganizationDto,
   ) {
     return this.authService.switchOrganization(userId, dto);
@@ -140,7 +140,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   logout(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Body() body?: { refreshToken?: string },
   ) {
     return this.authService.logout(userId, body?.refreshToken);
